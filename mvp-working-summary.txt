@@ -1,0 +1,654 @@
+================================================================================
+SKETCHLIB — MVP BACKEND WORKING SUMMARY
+================================================================================
+Project folder : sketchup-store-api
+App name       : SketchLib
+Laravel        : 13.x
+PHP            : 8.3
+Database       : MySQL (database: sketchlib)
+Last updated   : 2026-05-29
+
+This document is the handoff summary for continuing work (frontend, deploy,
+Filament polish, SketchUp plugin). Everything below reflects what was built,
+tested, and what is still pending.
+
+
+================================================================================
+1. WHAT THIS PROJECT IS
+================================================================================
+
+SketchLib is a subscription + category-pack store for SketchUp 3D furniture
+models (.skp files). It has:
+
+  • A REST API (Sanctum tokens) for a Next.js website + SketchUp plugin
+  • A Filament admin dashboard at /admin for content + payment approval
+  • Manual payment flow (BaridiMob / CCP references — Algeria)
+  • Cloudflare R2 for model files + thumbnails (CONFIGURED + verified end-to-end)
+  • Resend for transactional email (configured, keys optional locally)
+
+Business model:
+  • Monthly/yearly subscriptions (regular + student pricing)
+  • One-time category pack purchases
+  • Beta users with full access
+  • Admin approves pending payments before access is granted
+
+
+================================================================================
+2. LOCAL URLS & ACCESS
+================================================================================
+
+  API (Postman / frontend)  http://localhost:8000/api
+  Filament admin            http://localhost:8000/admin
+  phpMyAdmin                http://localhost/phpmyadmin
+  Laravel serve             php artisan serve
+
+Start the API:
+  cd "/home/jack/Documents/furtniure 3d models/sketchup-store-api"
+  php artisan serve
+
+LAN access (SketchUp plugin on another PC — same Wi‑Fi/hotspot):
+  php artisan serve --host=0.0.0.0 --port=8000
+  hostname -I   → use first IP (e.g. 192.168.217.133)
+  Plugin ui/.env: VITE_API_URL=http://YOUR_IP:8000/api → npm run build
+
+MySQL (from .env):
+  DB_CONNECTION=mysql
+  DB_HOST=127.0.0.1
+  DB_PORT=3306
+  DB_DATABASE=sketchlib
+  DB_USERNAME=sketchlib
+  DB_PASSWORD=(see your .env — NOT the Filament password)
+
+Filament / API admin login (seeded):
+  Email    : admin@sketchlib.com
+  Password : sketchlib-admin
+
+Test client (Postman register/login):
+  Email    : test@example.com
+  Password : password123
+
+phpMyAdmin:
+  • sketchlib user → only sketchlib database (same as Laravel .env)
+  • root user      → all databases (MySQL root password you set via debian-sys-maint)
+
+
+================================================================================
+3. BUILD PHASES — WHAT WE COMPLETED
+================================================================================
+
+PHASE 1 — MIGRATIONS (database schema)
+--------------------------------------
+All tables created and migrated on MySQL:
+
+  users (+ is_admin, is_student, is_beta, hardware_id)
+  plans
+  subscriptions
+  user_sessions          (for SketchUp plugin hardware lock — UserSession model added)
+  categories
+  sketchup_models
+  category_packs
+  pack_purchases
+  downloads
+
+Plus Laravel defaults: cache, jobs, sessions, personal_access_tokens (Sanctum).
+
+Commands used:
+  php artisan make:migration ...
+  php artisan migrate
+  php artisan migrate:fresh --seed   (wipes + re-seeds — dev only)
+
+
+PHASE 2 — ELOQUENT MODELS
+-------------------------
+  app/Models/User.php           — Sanctum, FilamentUser, canAccess(), subscriptions
+  app/Models/Plan.php
+  app/Models/Subscription.php   — activate() method
+  app/Models/Category.php
+  app/Models/SketchupModel.php  — hides file_key from JSON
+  app/Models/CategoryPack.php
+  app/Models/PackPurchase.php
+  app/Models/Download.php
+
+Commands used:
+  php artisan make:model Plan
+  php artisan make:model Subscription
+  ... (one per model)
+
+
+PHASE 3 — CONFIG
+----------------
+  .env              — SketchLib branding, MySQL, R2 vars, FRONTEND_URL, Sanctum, Resend
+  config/filesystems.php — r2 disk (S3-compatible Cloudflare R2)
+  config/cors.php   — SPA CORS for localhost:3000, credentials true, Origin: null for SketchUp
+  config/sanctum.php — SANCTUM_STATEFUL_DOMAINS
+  config/app.php    — frontend_url for email links
+
+Note: Switched from SQLite to MySQL mid-project. SQLite driver was installed
+first; production path is MySQL.
+
+
+PHASE 4 — SERVICES (business logic layer)
+---------------------------------------
+  app/Services/StorageService.php
+    • presignedUploadUrl()    — admin uploads .skp / thumbnails (30 min)
+    • presignedDownloadUrl()  — customer download (10 min)
+    • presignedThumbnailUrl() — preview images (1 hour)
+    • delete()                — remove from R2
+
+  app/Services/AuthService.php
+    • register() — web token
+    • login()    — web OR plugin (hardware_id), device lock for plugin
+
+  app/Services/AccessService.php
+    • canDownload()
+    • getUserAccessType()     — beta | subscription | pack_only
+    • getAccessibleCategoryIds() — empty array = full access
+
+
+PHASE 5 — MIDDLEWARE + FORM REQUESTS
+------------------------------------
+  app/Http/Middleware/AdminOnly.php  — alias: admin (403 if not is_admin)
+  app/Http/Requests/Auth/RegisterRequest.php
+  app/Http/Requests/Auth/LoginRequest.php
+
+Registered in bootstrap/app.php:
+  'admin' => AdminOnly::class
+
+
+PHASE 6 — CONTROLLERS + ROUTES + MAIL
+-----------------------------------
+Controllers (app/Http/Controllers/):
+  Auth/AuthController.php
+  Admin/UploadController, CategoryController, ModelAdminController,
+       UserAdminController, SubscriptionAdminController,
+       PackPurchaseAdminController, NotificationController
+  Client/LibraryController, DownloadController,
+       SubscriptionController, PackController
+
+Mail:
+  app/Mail/NewModelsDropped.php
+  resources/views/emails/new-models-dropped.blade.php
+
+All routes in routes/api.php (29 endpoints under /api prefix).
+
+
+PHASE 7 — SEEDERS (mock / demo data)
+------------------------------------
+  database/seeders/AdminUserSeeder.php   — admin@sketchlib.com
+  database/seeders/PlanSeeder.php        — 4 plans (regular/student monthly/yearly)
+  database/seeders/DemoDataSeeder.php      — 3 categories, 6 models, category packs
+  database/seeders/BetaUserSeeder.php      — 12 beta users (Sarah is also admin)
+
+Run:
+  php artisan db:seed
+  php artisan db:seed --class=PlanSeeder
+
+
+FILAMENT ADMIN (jumped ahead of strict MVP order)
+-------------------------------------------------
+Installed Filament v4. Full CRUD dashboard at /admin.
+
+  composer require filament/filament:"^4.0"
+  php artisan filament:install --panels
+  php artisan make:filament-resource Category --generate ...
+  php artisan make:filament-widget StatsOverview --stats-overview
+
+Resources:
+  Categories, 3D Models, Subscription plans, Subscriptions, Pack purchases,
+  Users, Category packs, Download log (read-only)
+
+Features:
+  • SketchLib branding, sidebar groups (Content / Sales / Users / System)
+  • Approve / Reject actions on subscriptions + pack purchases (table row buttons)
+  • Pending badges on sidebar
+  • Dashboard stats widget
+  • Only users with is_admin=true can access panel (User::canAccessPanel)
+  • Subscriptions + Pack purchases default to Pending filter; empty state explains filter
+  • 3D Models: thumbnail_key optional (nullable in DB)
+
+Recent API UX fixes (2026-05-29):
+  • GET /categories returns cover_image_url (presigned) when cover_image_key is set
+  • POST /subscriptions + POST /packs 422 includes existing_status + object for frontend
+  • sketchup_models.thumbnail_key nullable — insert works without thumbnail
+
+Filament replaces most Admin API CRUD for day-to-day ops. API admin routes
+still exist for automation / Postman / future use.
+
+
+POSTMAN TEST COLLECTION
+-----------------------
+  postman/SketchLib.postman_collection.json
+  postman/SketchLib.postman_environment.json
+
+Import both into Postman. Select environment "SketchLib Local".
+
+Separate tokens (important!):
+  clientToken — Client folder + client login
+  adminToken  — Admin folder + admin login
+
+Do NOT mix tokens. Admin routes return {"message":"Unauthorized"} if client
+token is sent.
+
+
+================================================================================
+4. API ENDPOINTS (FULL LIST)
+================================================================================
+
+Base: http://localhost:8000/api
+
+AUTH (no token for register/login)
+  POST   /auth/register
+  POST   /auth/login
+  POST   /auth/logout          [auth:sanctum]
+  GET    /auth/me              [auth:sanctum]
+
+PUBLIC
+  GET    /categories
+  GET    /plans
+
+CLIENT [auth:sanctum]
+  GET    /categories/{slug}/models
+  POST   /models/{model}/download
+  GET    /subscriptions/current
+  POST   /subscriptions
+  GET    /packs/purchased
+  POST   /packs/{categoryId}
+
+ADMIN [auth:sanctum + admin middleware]
+  GET    /admin/upload/presign
+  GET    /admin/models
+  POST   /admin/models
+  PUT    /admin/models/{model}
+  DELETE /admin/models/{model}
+  POST   /admin/categories
+  PUT    /admin/categories/{category}
+  DELETE /admin/categories/{category}
+  GET    /admin/users
+  PUT    /admin/users/{user}
+  GET    /admin/subscriptions?status=pending
+  PUT    /admin/subscriptions/{subscription}/activate
+  PUT    /admin/subscriptions/{subscription}/reject
+  GET    /admin/pack-purchases?status=pending
+  PUT    /admin/pack-purchases/{purchase}/activate
+  PUT    /admin/pack-purchases/{purchase}/reject
+  POST   /admin/notify/new-models
+
+
+================================================================================
+5. POSTMAN TESTING — WHAT WAS VERIFIED (2026-05-28)
+================================================================================
+
+NOT TESTED (optional / later):
+  [ ] POST /auth/logout
+  [ ] PUT .../subscriptions/reject
+  [ ] PUT .../pack-purchases/reject
+  [ ] Admin CRUD POST/PUT/DELETE categories & models (use Filament instead)
+  [ ] PUT /admin/users/{user}
+  [ ] POST /admin/notify/new-models (needs queue + Resend)
+
+
+================================================================================
+5b. INTEGRATION TESTING — VERIFIED (2026-05-29)
+================================================================================
+
+R2 + UPLOAD + PLUGIN INSERT — FULL LOOP WORKING:
+  [x] Cloudflare R2 bucket sketchlib-models created
+  [x] R2 User API token (Object Read & Write) in .env
+  [x] FILESYSTEM_DISK=r2, real R2_ENDPOINT (account ID in URL)
+  [x] GET /admin/upload/presign → real presigned file_upload_url
+  [x] PUT test-cube.skp to file_upload_url (Postman, sister's Windows PC) → 200 OK
+  [x] File visible in Cloudflare: models/living-room/{uuid}-test-cube.skp
+  [x] Filament: create 3D Model with file_key, published, no thumbnail_key
+  [x] Plugin login over LAN (test@example.com, hardware_id)
+  [x] Plugin browse Living Room → Test Cube → Insert → SUCCESS in SketchUp
+
+Test model used:
+  file_key: models/living-room/2c2c7bd2-5155-410e-9f98-9a9d5a9cee69-test-cube.skp
+
+Also verified earlier (2026-05-28):
+  [x] Register + Login (client)
+  [x] Login (admin) with adminToken
+  [x] GET /auth/me
+  [x] GET /categories (returns 3 seeded categories)
+  [x] GET /plans (returns 4 seeded plans)
+  [x] GET /categories/living-room/models (with active subscription)
+  [x] POST /subscriptions (creates pending)
+  [x] GET /admin/subscriptions?status=pending
+  [x] PUT /admin/subscriptions/{id}/activate
+  [x] GET /subscriptions/current (shows active sub, payer Ahmed B.)
+  [x] POST /models/{id}/download (returns presigned download_url)
+  [x] POST /packs/{categoryId} (creates pending pack purchase)
+  [x] GET /admin/pack-purchases?status=pending
+  [x] PUT /admin/pack-purchases/{id}/activate
+  [x] GET /packs/purchased (shows Living Room pack, active)
+  [x] GET /admin/users
+  [x] GET /admin/models
+  [x] Login with hardware_id (SketchUp plugin flow)
+
+
+================================================================================
+6. SEEDED DEMO DATA (for frontend / testing)
+================================================================================
+
+PLANS (table: plans)
+  regular_monthly   3000 DZD   1 month
+  regular_yearly    30000 DZD  12 months
+  student_monthly   1500 DZD   1 month
+  student_yearly    7500 DZD   12 months
+
+CATEGORIES (table: categories)
+  living-room   Living Room   pack 5000 DZD   2 published models
+  kitchen       Kitchen       pack 4500 DZD   2 published models
+  bedroom       Bedroom       pack 4000 DZD   1 published model
+
+BETA USERS (12) — password: beta2024! — emails: *@beta.sketchlib.com
+  Sarah is also is_admin=true (from MVP spec)
+
+ADMIN: admin@sketchlib.com / sketchlib-admin
+
+
+================================================================================
+7. ACCESS CONTROL LOGIC (important for frontend)
+================================================================================
+
+User.canAccess(model) returns true if ANY of:
+  • model.is_free_preview
+  • user.is_beta
+  • user has active or beta subscription (not expired)
+  • user owns active pack for model's category
+
+AccessService.getAccessibleCategoryIds():
+  • Returns [] (empty) for beta OR active subscription → FULL library access
+  • Returns [category ids] for pack-only users → only those categories
+
+Plugin login (AuthService):
+  • First login saves hardware_id on user
+  • Different hardware_id → device_mismatch error
+  • Only one plugin token at a time (name: plugin)
+
+Payment flow:
+  • Client submits subscription or pack with payer_name + payment_ref
+  • Status: pending
+  • Admin approves in Filament OR API PUT .../activate
+  • Subscription: sets starts_at, ends_at from plan duration
+  • Pack: status active permanently for that category
+
+
+================================================================================
+8. ENV VARS REFERENCE (.env)
+================================================================================
+
+APP
+  APP_NAME=SketchLib
+  APP_URL=http://localhost:8000
+
+DATABASE (MySQL)
+  DB_CONNECTION=mysql
+  DB_DATABASE=sketchlib
+  DB_USERNAME=sketchlib
+  DB_PASSWORD=(your password)
+
+FRONTEND + SANCTUM (for Next.js SPA cookies later)
+  FRONTEND_URL=http://localhost:3000
+  SANCTUM_STATEFUL_DOMAINS=localhost:3000
+
+STORAGE (R2 — configured and working locally)
+  FILESYSTEM_DISK=r2
+  R2_ACCESS_KEY_ID=(set in .env — R2 User API token)
+  R2_SECRET_ACCESS_KEY=(set in .env)
+  R2_DEFAULT_REGION=auto
+  R2_BUCKET=sketchlib-models
+  R2_ENDPOINT=https://YOUR_ACCOUNT_ID.r2.cloudflarestorage.com
+
+R2 setup notes:
+  • Bucket: sketchlib-models (private, Standard storage)
+  • Token: R2 Overview → Account details → API Tokens → Manage → User API token
+  • NOT Account/User API tokens from Cloudflare profile — use R2-specific tokens
+  • Presign → PUT to file_upload_url (30 min) → save file_key in Filament
+  • Plugin download uses presigned download_url, not upload URL
+
+MAIL
+  MAIL_MAILER=log                  (switch to resend when ready)
+  RESEND_API_KEY=
+  MAIL_FROM_ADDRESS=noreply@sketchlib.com
+
+
+================================================================================
+9. WHAT IS WAITING / NOT DONE YET
+================================================================================
+
+A) CLOUDFLARE R2 — DONE (2026-05-29)
+------------------------------------
+Status: WORKING end-to-end (presign → PUT → Filament → plugin insert).
+
+Upload flow:
+  1. GET /admin/upload/presign (admin token)
+  2. PUT .skp to file_upload_url (Postman, binary, Content-Type: application/octet-stream)
+  3. Optional: PUT .jpg to thumb_upload_url
+  4. Filament → 3D Models → set file_key (+ optional thumbnail_key) → published
+
+File key convention:
+  models/{category_slug}/{uuid}-{name}.skp
+  thumbnails/{category_slug}/{uuid}.jpg
+
+Production: same bucket or create prod bucket; copy R2_* keys to production .env.
+
+
+B) RESEND (email) — WHEN SENDING REAL EMAILS
+--------------------------------------------
+Purpose: New models notifications, future password reset, etc.
+
+What exists now:
+  • resend/resend-laravel installed
+  • NewModelsDropped mailable + blade template
+  • POST /admin/notify/new-models queues emails
+
+What you need to do:
+  1. resend.com → sign up → API key
+  2. Verify domain sketchlib.com (for noreply@sketchlib.com)
+  3. RESEND_API_KEY=... in .env
+  4. MAIL_MAILER=resend
+  5. Run queue worker: php artisan queue:work
+  6. Test notify endpoint
+
+Local dev: keep MAIL_MAILER=log — emails go to storage/logs/laravel.log
+
+
+C) HOSTING / PRODUCTION — NEXT MAJOR STEP
+-----------------------------------------
+MVP core loop is proven. Deploy when ready for real users.
+
+  • Deploy ONE Laravel app (API + Filament together)
+  • Deploy Next.js storefront (separate folder)
+  • Managed MySQL (not SQLite)
+  • Update APP_URL, FRONTEND_URL, SANCTUM_STATEFUL_DOMAINS to real domains
+  • R2 keys in production .env (same or prod bucket)
+  • Next.js: switch to Sanctum httpOnly cookies (plugin keeps Bearer token)
+  • Plugin: rebuild ui/ with production VITE_API_URL
+  • php artisan migrate --force
+  • php artisan config:cache (production)
+  • Queue worker for emails (when Resend enabled)
+  • Create girlfriend admin user in Filament (is_admin=true)
+
+Suggested hosts: Railway, Laravel Forge + VPS, Fly.io, Laravel Cloud
+Next.js: Vercel or same VPS
+
+
+D) FILAMENT POLISH — BEFORE GIVING GF THE DASHBOARD
+---------------------------------------------------
+Planned improvements (discussed, not built yet):
+  • Role tiers: super admin (you) vs limited admin (girlfriend)
+  • Relation managers (related models under category on same page)
+  • More inline table actions / toggles (publish/unpublish in list)
+  • Clearer labels for non-technical users
+
+Current state: functional base dashboard — good enough for you, polish before
+handoff to girlfriend.
+
+
+E) SKETCHUP PLUGIN — SEPARATE PROJECT (sketchlib-plugin/)
+---------------------------------------------------------
+Status: Phase 2 login + insert VERIFIED over LAN (2026-05-29).
+
+  [x] Login with hardware_id in body
+  [x] device_mismatch handling
+  [x] Bearer token (name: plugin) stored in plugin UI
+  [x] Browse categories + models
+  [x] Insert downloads .skp via presigned URL → imports into SketchUp
+  [ ] user_sessions table writes on login (UserSession model ready, not wired yet)
+  [ ] Production API URL rebuild + distribution
+  [ ] UI polish (thumbnails, error states, logout)
+
+Plugin folder: sketchup plugin/sketchlib-plugin/
+Rebuild for LAN: ui/.env VITE_API_URL=http://YOUR_IP:8000/api → npm run build
+
+
+F) FRONTEND (NEXT.JS) — BUILT (separate folder)
+-----------------------------------------------
+Status: Phases 1–5 complete (other Cursor window). Admin skipped — Filament handles it.
+
+  [x] Auth, landing, pricing, dashboard, checkout (subscription + pack)
+  [x] Bearer token in js-cookie (dev MVP)
+  [ ] Sanctum httpOnly cookies — deploy prep (PRODUCTION-CHECKLIST.md in Next.js repo)
+  [ ] Real BaridiMob account number (flow works with placeholder)
+
+.env for frontend:
+  NEXT_PUBLIC_API_URL=http://localhost:8000/api
+  NEXT_PUBLIC_PAYMENT_ACCOUNT=(placeholder until BaridiMob ready)
+
+CORS allows http://localhost:3000 with credentials.
+
+
+H) BARIDIMOB / REAL PAYMENT — AT LAUNCH
+---------------------------------------
+  • Manual payment + Filament approval flow works in dev
+  • NEXT_PUBLIC_PAYMENT_ACCOUNT is placeholder on frontend
+  • Swap real BaridiMob/CCP account number when Algeria Post is ready
+  • No backend code change required — config + copy only
+
+
+G) OPTIONAL API ENDPOINTS NOT PRIORITY
+--------------------------------------
+  • Reject subscription / pack (mirror of activate — easy to add/test)
+  • Admin API CRUD (Filament is primary admin UI)
+  • Logout endpoint
+
+
+================================================================================
+10. USEFUL ARTISAN COMMANDS (CHEAT SHEET)
+================================================================================
+
+  php artisan serve
+  php artisan serve --host=0.0.0.0 --port=8000   (LAN access for plugin testing)
+  php artisan migrate
+  php artisan migrate:fresh --seed
+  php artisan db:seed
+  php artisan db:seed --class=AdminUserSeeder
+  php artisan route:list --path=api
+  php artisan config:clear
+  php artisan about
+  php artisan queue:work          (for queued emails)
+  php artisan make:filament-user    (create admin interactively)
+
+Composer packages installed:
+  laravel/sanctum
+  league/flysystem-aws-s3-v3
+  aws/aws-sdk-php
+  resend/resend-laravel
+  filament/filament ^4
+
+
+================================================================================
+11. KEY FILE LOCATIONS
+================================================================================
+
+  routes/api.php                          — all API routes
+  bootstrap/app.php                       — admin middleware alias
+  app/Services/                           — Storage, Auth, Access
+  app/Http/Controllers/                   — Auth, Admin, Client
+  app/Http/Middleware/AdminOnly.php
+  app/Http/Requests/Auth/
+  app/Models/
+  app/Filament/Resources/                 — admin dashboard CRUD
+  app/Providers/Filament/AdminPanelProvider.php
+  database/migrations/
+  database/migrations/2026_05_29_171235_make_thumbnail_key_nullable_on_sketchup_models_table.php
+  database/seeders/
+  config/filesystems.php, cors.php, sanctum.php, app.php
+  postman/                                — Postman import files
+  mvp.txt                                 — original full MVP spec
+  mvp-working-summary.txt                 — this file
+
+
+================================================================================
+12. RECOMMENDED NEXT STEPS (ORDER) — updated 2026-05-29
+================================================================================
+
+  MVP CORE LOOP PROVEN:
+    R2 upload → Filament model → API download → SketchUp plugin Insert ✅
+
+  1. PLUGIN POLISH (sketchlib-plugin folder)
+     Thumbnails, error states, logout, production API URL rebuild
+
+  2. CONTENT
+     Upload real furniture models + thumbnails via presign → Filament
+     Category cover images (cover_image_url now in GET /categories)
+
+  3. DEPLOY
+     Laravel (API + Filament) + Next.js + plugin rebuild with prod URLs
+     Sanctum httpOnly cookies for Next.js only (plugin keeps Bearer token)
+     Production MySQL, R2 keys, HTTPS domains
+
+  4. LAUNCH POLISH
+     Real BaridiMob account, Resend emails, Filament roles for Sarah
+
+  5. OPTIONAL
+     user_sessions writes on plugin login, reject endpoints, API admin CRUD
+
+
+================================================================================
+13. TROUBLESHOOTING NOTES (from this build session)
+================================================================================
+
+  • SQLite "could not find driver" → sudo apt install php8.3-sqlite3
+    (We switched to MySQL instead.)
+
+  • MySQL root password forgotten → sudo cat /etc/mysql/debian.cnf
+    → login as debian-sys-maint → reset root + create sketchlib user
+
+  • phpMyAdmin "admin" login fails → that's not a MySQL user.
+    Use sketchlib (from .env) or root (MySQL).
+
+  • Postman admin 403 Unauthorized → wrong token. Use adminToken not clientToken.
+    Re-import postman/ files for separate clientToken/adminToken.
+
+  • Empty Filament Subscriptions list → default filter is Pending only.
+    Change filter to Active or clear it. test@example.com may already have
+    active sub (id 14) from Postman — checkout blocked correctly, not a bug.
+
+  • Checkout "already have pending or active subscription" → user has existing
+    sub. API now returns existing_status + subscription in 422 for frontend.
+
+  • thumbnail_key required in Filament → run migration:
+    php artisan migrate (2026_05_29_171235_make_thumbnail_key_nullable...)
+
+  • R2 presign URL shows YOUR_ACCOUNT_ID → fill real R2_* in .env, config:clear
+
+  • PUT to R2 fails → use full file_upload_url from presign (not localhost:8000)
+    Body: binary, Content-Type: application/octet-stream. URL expires in 30 min.
+
+  • Plugin can't reach API from sister's PC → serve --host=0.0.0.0, same Wi‑Fi,
+    rebuild plugin with VITE_API_URL=http://YOUR_UBUNTU_IP:8000/api
+
+  • Plugin CORS error → config/cors.php allows Origin: null for SketchUp panel
+
+  • 403 device linked → clear hardware_id in Filament Users or use new account
+
+  • subscriptionId in Postman ≠ user id. Check id column in subscriptions table.
+
+  • IDs 1–12 in subscriptions table are beta users from seeder, not your test user.
+
+
+================================================================================
+END OF SUMMARY — Backend MVP complete. R2 + plugin insert verified. Deploy next.
+================================================================================

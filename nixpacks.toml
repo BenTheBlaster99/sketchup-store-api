@@ -1,0 +1,14 @@
+# Railway Nixpacks — Laravel 13 / PHP 8.3
+# Docs: https://nixpacks.com/docs/configuration/file
+
+[phases.setup]
+nixPkgs = ["...", "php83", "php83Extensions.pdo_mysql", "php83Extensions.mbstring", "php83Extensions.bcmath", "php83Extensions.xml", "php83Extensions.curl", "php83Extensions.zip", "php83Extensions.intl"]
+
+[phases.install]
+cmds = ["composer install --no-dev --optimize-autoloader --no-interaction"]
+
+[phases.build]
+cmds = ["php artisan filament:optimize || true"]
+
+[start]
+cmd = "php artisan serve --host=0.0.0.0 --port=${PORT:-8000}"

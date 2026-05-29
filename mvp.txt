@@ -1,0 +1,59 @@
+Got it. I've read both docs and checked the repo. Here's where we stand and how I'd split the work.
+
+What we're building
+SketchLib — a Next.js storefront for SketchUp 3D furniture models that talks to your Laravel API at http://localhost:8000/api.
+
+Area	What it does
+Public
+Landing, pricing, login/register
+Checkout
+Manual BaridiMob/CCP payment flow (subscription + category packs)
+Dashboard
+Browse categories, view models, download .skp files
+Admin
+Payment approval, model upload, user management (in the MVP spec)
+Current repo state: Next.js is scaffolded and deps from the spec are installed (axios, react-hook-form, zod, etc.). Still default boilerplate — no lib/, context/, routes, or middleware yet.
+
+One note: Your backend already has Filament admin at localhost:8000/admin. The MVP spec also includes Next.js admin pages. We can either build those as a lighter web admin, or defer them and use Filament for day-to-day ops. Worth deciding before Phase 6.
+
+Phased plan
+Phase	Scope	You verify
+1 — Foundation
+.env.local, lib/types.ts, lib/api.ts, AuthContext, middleware.ts, root layout, folder skeleton
+App runs, API client wired, auth cookie flow works
+2 — Auth
+Login + register pages
+Register/login against API, redirect to dashboard
+3 — Public pages
+Landing, pricing (GET /plans), shared Navbar
+Public routes look right, plans load from API
+4 — Client dashboard
+Category grid, model list, download button, access gating (beta / sub / pack)
+Browse + download with test user
+5 — Checkout
+Subscription + pack checkout, payment instructions
+Pending payment flow end-to-end
+6 — Admin (optional)
+Admin layout + subscriptions/packs/models/users
+Approve payments from Next.js (or skip → Filament)
+7 — Polish
+Shared UI components, loading/error states, dashboard layout nav
+Production-ready feel
+Each phase = one stop for your review before the next.
+
+Phase 1 — Foundation (next up)
+If you say go, Phase 1 will add:
+
+lib/types.ts          ← all TS interfaces from spec
+lib/api.ts            ← axios + auth/library/subscription/pack/admin helpers
+lib/utils.ts          ← small helpers (format DZD, etc.)
+context/AuthContext.tsx
+middleware.ts         ← protect /dashboard, /admin, /auth
+.env.local.example    ← NEXT_PUBLIC_API_URL, NEXT_PUBLIC_PAYMENT_ACCOUNT
+app/layout.tsx        ← wrap with AuthProvider, SketchLib metadata
+Route group folders   ← (public), (dashboard), (admin) — empty shells
+No pages yet beyond moving/fixing the landing stub — just the plumbing everything else sits on.
+
+To verify Phase 1: npm run dev runs clean, and we can hit GET /categories from the browser console via the API client (or a tiny test on the home page).
+
+Reply "go Phase 1" (or tweak the plan — e.g. skip Next admin, change phase order) and I'll implement only that phase, then pause for your check.

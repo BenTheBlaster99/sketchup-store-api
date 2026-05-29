@@ -1,0 +1,425 @@
+{
+  "info": {
+    "name": "SketchLib API",
+    "description": "Use separate tokens: clientToken for Client folder, adminToken for Admin folder.\n\n1. Import collection + SketchLib Local environment\n2. Client flow: Login (Client) → use Client folder\n3. Admin flow: Login (Admin) → use Admin folder\n4. Never mix — Admin routes need adminToken",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "noauth"
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "pm.request.headers.upsert({ key: 'Accept', value: 'application/json' });",
+          "if (pm.request.method !== 'GET' && pm.request.method !== 'HEAD') {",
+          "    pm.request.headers.upsert({ key: 'Content-Type', value: 'application/json' });",
+          "}"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8000/api" },
+    { "key": "clientToken", "value": "" },
+    { "key": "adminToken", "value": "" },
+    { "key": "categorySlug", "value": "living-room" },
+    { "key": "modelId", "value": "1" },
+    { "key": "planId", "value": "1" },
+    { "key": "categoryId", "value": "1" },
+    { "key": "subscriptionId", "value": "14" },
+    { "key": "purchaseId", "value": "1" },
+    { "key": "userId", "value": "1" }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "auth": {
+        "type": "bearer",
+        "bearer": [{ "key": "token", "value": "{{clientToken}}", "type": "string" }]
+      },
+      "item": [
+        {
+          "name": "Register",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Test User\",\n  \"email\": \"test@example.com\",\n  \"password\": \"password123\",\n  \"password_confirmation\": \"password123\",\n  \"is_student\": false\n}"
+            },
+            "url": "{{baseUrl}}/auth/register"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const json = pm.response.json();",
+                  "    if (json.token) {",
+                  "        pm.collectionVariables.set('clientToken', json.token);",
+                  "        pm.environment.set('clientToken', json.token);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login (Client)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"test@example.com\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/login"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const json = pm.response.json();",
+                  "    if (json.token) {",
+                  "        pm.collectionVariables.set('clientToken', json.token);",
+                  "        pm.environment.set('clientToken', json.token);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login (Admin)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@sketchlib.com\",\n  \"password\": \"sketchlib-admin\"\n}"
+            },
+            "url": "{{baseUrl}}/auth/login"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const json = pm.response.json();",
+                  "    if (json.token) {",
+                  "        pm.collectionVariables.set('adminToken', json.token);",
+                  "        pm.environment.set('adminToken', json.token);",
+                  "        console.log('Admin token saved for', json.user.email, 'is_admin=', json.user.is_admin);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Me",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/auth/me"
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/auth/logout"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Public",
+      "auth": { "type": "noauth" },
+      "item": [
+        {
+          "name": "List Categories",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/categories"
+          }
+        },
+        {
+          "name": "List Plans",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/plans"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Client",
+      "auth": {
+        "type": "bearer",
+        "bearer": [{ "key": "token", "value": "{{clientToken}}", "type": "string" }]
+      },
+      "item": [
+        {
+          "name": "Category Models",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/categories/{{categorySlug}}/models"
+          }
+        },
+        {
+          "name": "Download Model",
+          "request": {
+            "method": "POST",
+            "url": "{{baseUrl}}/models/{{modelId}}/download"
+          }
+        },
+        {
+          "name": "Current Subscription",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/subscriptions/current"
+          }
+        },
+        {
+          "name": "Request Subscription",
+          "request": {
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"plan_id\": {{planId}},\n  \"payer_name\": \"Ahmed B.\",\n  \"payment_ref\": \"CCP-123456\"\n}"
+            },
+            "url": "{{baseUrl}}/subscriptions"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const json = pm.response.json();",
+                  "    if (json.id) {",
+                  "        pm.collectionVariables.set('subscriptionId', json.id);",
+                  "        pm.environment.set('subscriptionId', json.id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Purchased Packs",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/packs/purchased"
+          }
+        },
+        {
+          "name": "Buy Category Pack",
+          "request": {
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"payer_name\": \"Ahmed B.\",\n  \"payment_ref\": \"CCP-789012\"\n}"
+            },
+            "url": "{{baseUrl}}/packs/{{categoryId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin",
+      "auth": {
+        "type": "bearer",
+        "bearer": [{ "key": "token", "value": "{{adminToken}}", "type": "string" }]
+      },
+      "item": [
+        {
+          "name": "Upload Presign",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/admin/upload/presign?file_name=sofa.skp&file_type=application/octet-stream&thumbnail_name=sofa.jpg&thumbnail_type=image/jpeg&category_slug=living-room",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "upload", "presign"],
+              "query": [
+                { "key": "file_name", "value": "sofa.skp" },
+                { "key": "file_type", "value": "application/octet-stream" },
+                { "key": "thumbnail_name", "value": "sofa.jpg" },
+                { "key": "thumbnail_type", "value": "image/jpeg" },
+                { "key": "category_slug", "value": "living-room" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "List Models",
+          "request": { "method": "GET", "url": "{{baseUrl}}/admin/models" }
+        },
+        {
+          "name": "Create Model",
+          "request": {
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"category_id\": 1,\n  \"name\": \"Test Model\",\n  \"file_key\": \"models/living-room/test.skp\",\n  \"thumbnail_key\": \"thumbnails/living-room/test.jpg\",\n  \"file_size_bytes\": 1000000,\n  \"sketchup_version_min\": 2022\n}"
+            },
+            "url": "{{baseUrl}}/admin/models"
+          }
+        },
+        {
+          "name": "Update Model",
+          "request": {
+            "method": "PUT",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"is_published\": true\n}"
+            },
+            "url": "{{baseUrl}}/admin/models/{{modelId}}"
+          }
+        },
+        {
+          "name": "Delete Model",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/admin/models/{{modelId}}"
+          }
+        },
+        {
+          "name": "Create Category",
+          "request": {
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Office\",\n  \"description\": \"Desks and chairs\",\n  \"pack_price\": 3500\n}"
+            },
+            "url": "{{baseUrl}}/admin/categories"
+          }
+        },
+        {
+          "name": "Update Category",
+          "request": {
+            "method": "PUT",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"is_active\": true\n}"
+            },
+            "url": "{{baseUrl}}/admin/categories/{{categoryId}}"
+          }
+        },
+        {
+          "name": "Delete Category",
+          "request": {
+            "method": "DELETE",
+            "url": "{{baseUrl}}/admin/categories/{{categoryId}}"
+          }
+        },
+        {
+          "name": "List Users",
+          "request": { "method": "GET", "url": "{{baseUrl}}/admin/users" }
+        },
+        {
+          "name": "Update User",
+          "request": {
+            "method": "PUT",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"is_beta\": true\n}"
+            },
+            "url": "{{baseUrl}}/admin/users/{{userId}}"
+          }
+        },
+        {
+          "name": "List Subscriptions (pending)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/admin/subscriptions?status=pending",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "subscriptions"],
+              "query": [{ "key": "status", "value": "pending" }]
+            }
+          }
+        },
+        {
+          "name": "Activate Subscription",
+          "request": {
+            "method": "PUT",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"admin_note\": \"Payment verified via CCP\"\n}"
+            },
+            "url": "{{baseUrl}}/admin/subscriptions/{{subscriptionId}}/activate"
+          }
+        },
+        {
+          "name": "Reject Subscription",
+          "request": {
+            "method": "PUT",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"admin_note\": \"Invalid payment reference\"\n}"
+            },
+            "url": "{{baseUrl}}/admin/subscriptions/{{subscriptionId}}/reject"
+          }
+        },
+        {
+          "name": "List Pack Purchases (pending)",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{baseUrl}}/admin/pack-purchases?status=pending",
+              "host": ["{{baseUrl}}"],
+              "path": ["admin", "pack-purchases"],
+              "query": [{ "key": "status", "value": "pending" }]
+            }
+          }
+        },
+        {
+          "name": "Activate Pack Purchase",
+          "request": {
+            "method": "PUT",
+            "body": { "mode": "raw", "raw": "{}" },
+            "url": "{{baseUrl}}/admin/pack-purchases/{{purchaseId}}/activate"
+          }
+        },
+        {
+          "name": "Reject Pack Purchase",
+          "request": {
+            "method": "PUT",
+            "body": { "mode": "raw", "raw": "{}" },
+            "url": "{{baseUrl}}/admin/pack-purchases/{{purchaseId}}/reject"
+          }
+        },
+        {
+          "name": "Notify New Models",
+          "request": {
+            "method": "POST",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"model_ids\": [1, 2]\n}"
+            },
+            "url": "{{baseUrl}}/admin/notify/new-models"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,110 @@
+<?php
+
+namespace App\Filament\Resources\PackPurchases\Tables;
+
+use App\Models\PackPurchase;
+use Filament\Actions\Action;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
+use Filament\Forms\Components\Textarea;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Table;
+
+class PackPurchasesTable
+{
+    public static function configure(Table $table): Table
+    {
+        return $table
+            ->columns([
+                TextColumn::make('user.name')
+                    ->label('Customer')
+                    ->searchable()
+                    ->sortable(),
+                TextColumn::make('category.name')
+                    ->label('Category pack')
+                    ->searchable(),
+                TextColumn::make('status')
+                    ->badge()
+                    ->color(fn (string $state): string => match ($state) {
+                        'pending' => 'warning',
+                        'active' => 'success',
+                        'rejected' => 'danger',
+                        default => 'gray',
+                    }),
+                TextColumn::make('price_paid_dzd')
+                    ->label('Price (DZD)')
+                    ->numeric()
+                    ->sortable(),
+                TextColumn::make('payment_ref')
+                    ->label('Payment reference')
+                    ->searchable()
+                    ->placeholder('—'),
+                TextColumn::make('payer_name')
+                    ->label('Payer name')
+                    ->searchable()
+                    ->placeholder('—'),
+                TextColumn::make('created_at')
+                    ->label('Submitted')
+                    ->dateTime()
+                    ->sortable(),
+            ])
+            ->defaultSort('created_at', 'desc')
+            ->emptyStateHeading('No pending pack purchases')
+            ->emptyStateDescription('This list defaults to Pending. Clear the Status filter or choose Active to see approved purchases.')
+            ->filters([
+                SelectFilter::make('status')
+                    ->options([
+                        'pending' => 'Pending',
+                        'active' => 'Active',
+                        'rejected' => 'Rejected',
+                    ])
+                    ->default('pending'),
+            ])
+            ->recordActions([
+                Action::make('approve')
+                    ->label('Approve')
+                    ->icon('heroicon-o-check-circle')
+                    ->color('success')
+                    ->requiresConfirmation()
+                    ->modalHeading('Approve pack purchase?')
+                    ->modalDescription('The customer will get permanent access to this category pack.')
+                    ->visible(fn (PackPurchase $record): bool => $record->status === 'pending')
+                    ->form([
+                        Textarea::make('admin_note')
+                            ->label('Note (optional)')
+                            ->rows(3),
+                    ])
+                    ->action(function (PackPurchase $record, array $data): void {
+                        $record->update([
+                            'status' => 'active',
+                            'admin_note' => $data['admin_note'] ?? null,
+                        ]);
+                    }),
+                Action::make('reject')
+                    ->label('Reject')
+                    ->icon('heroicon-o-x-circle')
+                    ->color('danger')
+                    ->requiresConfirmation()
+                    ->form([
+                        Textarea::make('admin_note')
+                            ->label('Reason (optional)')
+                            ->rows(3),
+                    ])
+                    ->visible(fn (PackPurchase $record): bool => $record->status === 'pending')
+                    ->action(function (PackPurchase $record, array $data): void {
+                        $record->update([
+                            'status' => 'rejected',
+                            'admin_note' => $data['admin_note'] ?? null,
+                        ]);
+                    }),
+                EditAction::make(),
+            ])
+            ->toolbarActions([
+                BulkActionGroup::make([
+                    DeleteBulkAction::make(),
+                ]),
+            ]);
+    }
+}
