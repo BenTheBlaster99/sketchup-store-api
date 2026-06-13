@@ -70,6 +70,16 @@ class User extends Authenticatable implements FilamentUser
         return $this->hasMany(UserSession::class);
     }
 
+    public function favorites(): HasMany
+    {
+        return $this->hasMany(ModelFavorite::class);
+    }
+
+    public function hasFavorited(int $modelId): bool
+    {
+        return $this->favorites()->where('sketchup_model_id', $modelId)->exists();
+    }
+
     public function hasActiveSubscription(): bool
     {
         return $this->activeSubscription()->exists();

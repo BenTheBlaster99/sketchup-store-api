@@ -35,6 +35,7 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->navigationGroups([
                 NavigationGroup::make('Overview'),
+                NavigationGroup::make('Marketing'),
                 NavigationGroup::make('Content')
                     ->label('Library content'),
                 NavigationGroup::make('Sales')

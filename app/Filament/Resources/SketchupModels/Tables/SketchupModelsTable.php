@@ -38,6 +38,15 @@ class SketchupModelsTable
                 TextColumn::make('sort_order')
                     ->numeric()
                     ->sortable(),
+                TextColumn::make('likes_count')
+                    ->label('Likes')
+                    ->numeric()
+                    ->sortable()
+                    ->alignCenter(),
+                TextColumn::make('tags.name')
+                    ->label('Tags')
+                    ->badge()
+                    ->separator(','),
                 TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()

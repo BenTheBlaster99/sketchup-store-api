@@ -49,14 +49,31 @@ class LibraryController extends Controller
             return response()->json(['message' => 'No access to this category'], 403);
         }
 
-        $models = SketchupModel::where('category_id', $category->id)
+        $query = SketchupModel::where('category_id', $category->id)
             ->where('is_published', true)
-            ->orderBy('sort_order')
+            ->with('tags');
+
+        if ($request->filled('tags')) {
+            $tagSlugs = is_array($request->tags)
+                ? $request->tags
+                : explode(',', (string) $request->tags);
+
+            $tagSlugs = array_filter(array_map('trim', $tagSlugs));
+
+            if ($tagSlugs !== []) {
+                $query->whereHas('tags', function ($q) use ($tagSlugs) {
+                    $q->whereIn('slug', $tagSlugs);
+                });
+            }
+        }
+
+        $models = $query->orderBy('sort_order')
             ->get()
-            ->map(function ($model) {
+            ->map(function ($model) use ($user) {
                 $model->thumbnail_url = $model->thumbnail_key
                     ? $this->storage->presignedThumbnailUrl($model->thumbnail_key)
                     : null;
+                $model->is_favorited = $user->hasFavorited($model->id);
 
                 return $model;
             });

@@ -9,10 +9,13 @@ use App\Http\Controllers\Admin\UploadController;
 use App\Http\Controllers\Admin\UserAdminController;
 use App\Http\Controllers\Auth\AuthController;
 use App\Http\Controllers\Client\DownloadController;
+use App\Http\Controllers\Client\FavoriteController;
 use App\Http\Controllers\Client\LibraryController;
 use App\Http\Controllers\Client\PackController;
 use App\Http\Controllers\Client\SubscriptionController;
+use App\Http\Controllers\WaitlistController;
 use App\Models\Plan;
+use App\Models\Tag;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('auth')->group(function () {
@@ -27,9 +30,13 @@ Route::prefix('auth')->group(function () {
 
 Route::get('categories', [LibraryController::class, 'categories']);
 Route::get('plans', fn () => Plan::where('is_active', true)->get());
+Route::get('tags', fn () => Tag::orderBy('name')->get(['id', 'name', 'slug']));
+Route::post('waitlist', [WaitlistController::class, 'store']);
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('categories/{slug}/models', [LibraryController::class, 'categoryModels']);
+    Route::get('models/favorites', [FavoriteController::class, 'index']);
+    Route::post('models/{model}/favorite', [FavoriteController::class, 'toggle']);
     Route::post('models/{model}/download', [DownloadController::class, 'download']);
 
     Route::get('subscriptions/current', [SubscriptionController::class, 'current']);
@@ -63,4 +70,5 @@ Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function ()
     Route::put('pack-purchases/{purchase}/reject', [PackPurchaseAdminController::class, 'reject']);
 
     Route::post('notify/new-models', [NotificationController::class, 'notifyNewModels']);
+    Route::post('waitlist/notify', [WaitlistController::class, 'notifyAll']);
 });
