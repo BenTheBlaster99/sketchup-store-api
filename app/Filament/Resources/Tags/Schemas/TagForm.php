@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Tags\Schemas;
 
+use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Schema;
 use Illuminate\Support\Str;
@@ -19,6 +20,14 @@ class TagForm
                 TextInput::make('slug')
                     ->required()
                     ->unique(ignoreRecord: true),
+                Select::make('group')
+                    ->options([
+                        'type' => 'Type',
+                        'material' => 'Material',
+                        'style' => 'Style',
+                    ])
+                    ->default('style')
+                    ->required(),
             ]);
     }
 }

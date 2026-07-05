@@ -13,6 +13,8 @@ use App\Http\Controllers\Client\FavoriteController;
 use App\Http\Controllers\Client\LibraryController;
 use App\Http\Controllers\Client\PackController;
 use App\Http\Controllers\Client\SubscriptionController;
+use App\Http\Controllers\Creator\CreatorApplicationController;
+use App\Http\Controllers\Creator\CreatorPortalController;
 use App\Http\Controllers\WaitlistController;
 use App\Models\Plan;
 use App\Models\Tag;
@@ -30,7 +32,10 @@ Route::prefix('auth')->group(function () {
 
 Route::get('categories', [LibraryController::class, 'categories']);
 Route::get('plans', fn () => Plan::where('is_active', true)->get());
-Route::get('tags', fn () => Tag::orderBy('name')->get(['id', 'name', 'slug']));
+Route::get('tags', fn () => Tag::orderBy('group')
+    ->orderBy('name')
+    ->get(['id', 'name', 'slug', 'group'])
+    ->groupBy('group'));
 Route::post('waitlist', [WaitlistController::class, 'store']);
 
 Route::middleware('auth:sanctum')->group(function () {
@@ -44,10 +49,23 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('packs/purchased', [PackController::class, 'purchased']);
     Route::post('packs/{categoryId}', [PackController::class, 'store']);
+
+    Route::post('creator/apply', [CreatorApplicationController::class, 'store']);
+    Route::get('creator/apply/status', [CreatorApplicationController::class, 'status']);
+});
+
+Route::middleware(['auth:sanctum', 'creator'])->prefix('creator')->group(function () {
+    Route::get('models', [CreatorPortalController::class, 'models']);
+    Route::get('upload/presign', [CreatorPortalController::class, 'presign']);
+    Route::post('upload/autotag', [CreatorPortalController::class, 'autotag']);
+    Route::post('models', [CreatorPortalController::class, 'store']);
+    Route::get('earnings', [CreatorPortalController::class, 'earnings']);
+    Route::put('profile', [CreatorPortalController::class, 'updateProfile']);
 });
 
 Route::middleware(['auth:sanctum', 'admin'])->prefix('admin')->group(function () {
     Route::get('upload/presign', [UploadController::class, 'presign']);
+    Route::post('upload/autotag', [UploadController::class, 'autotag']);
 
     Route::get('models', [ModelAdminController::class, 'index']);
     Route::post('models', [ModelAdminController::class, 'store']);

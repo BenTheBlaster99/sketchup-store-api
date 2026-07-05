@@ -19,6 +19,9 @@ class TagsTable
                     ->sortable(),
                 TextColumn::make('slug')
                     ->searchable(),
+                TextColumn::make('group')
+                    ->badge()
+                    ->sortable(),
                 TextColumn::make('sketchupModels_count')
                     ->label('Models')
                     ->counts('sketchupModels')
@@ -28,7 +31,7 @@ class TagsTable
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
-            ->defaultSort('name')
+            ->defaultSort('group')
             ->recordActions([
                 EditAction::make(),
             ])

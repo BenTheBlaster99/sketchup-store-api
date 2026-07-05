@@ -15,7 +15,7 @@ class DownloadController extends Controller
 
     public function download(Request $request, SketchupModel $model): JsonResponse
     {
-        if (! $model->is_published) {
+        if (! $model->is_published || $model->review_status !== 'approved') {
             abort(404);
         }
 

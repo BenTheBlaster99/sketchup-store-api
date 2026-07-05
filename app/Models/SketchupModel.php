@@ -13,6 +13,7 @@ class SketchupModel extends Model
 
     protected $fillable = [
         'category_id',
+        'creator_id',
         'name',
         'slug',
         'file_key',
@@ -21,6 +22,8 @@ class SketchupModel extends Model
         'sketchup_version_min',
         'is_free_preview',
         'is_published',
+        'review_status',
+        'rejection_note',
         'sort_order',
     ];
 
@@ -34,6 +37,11 @@ class SketchupModel extends Model
     public function category(): BelongsTo
     {
         return $this->belongsTo(Category::class);
+    }
+
+    public function creator(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'creator_id');
     }
 
     public function favorites(): HasMany

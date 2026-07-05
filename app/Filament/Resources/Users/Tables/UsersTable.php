@@ -31,6 +31,22 @@ class UsersTable
                 IconColumn::make('is_beta')
                     ->label('Beta')
                     ->boolean(),
+                IconColumn::make('is_creator')
+                    ->label('Creator')
+                    ->boolean(),
+                TextColumn::make('creator_status')
+                    ->label('Creator status')
+                    ->badge()
+                    ->color(fn (string $state): string => match ($state) {
+                        'approved' => 'success',
+                        'pending' => 'warning',
+                        'suspended' => 'danger',
+                        default => 'gray',
+                    }),
+                TextColumn::make('paypal_email')
+                    ->label('PayPal')
+                    ->searchable()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('created_at')
                     ->label('Joined')
                     ->dateTime()

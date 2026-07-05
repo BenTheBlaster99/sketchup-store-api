@@ -21,6 +21,12 @@ use Laravel\Sanctum\HasApiTokens;
     'is_admin',
     'is_student',
     'is_beta',
+    'is_creator',
+    'creator_status',
+    'display_name',
+    'bio',
+    'paypal_email',
+    'revenue_share_percentage',
     'hardware_id',
 ])]
 #[Hidden(['password', 'remember_token', 'hardware_id'])]
@@ -37,6 +43,7 @@ class User extends Authenticatable implements FilamentUser
             'is_admin' => 'boolean',
             'is_student' => 'boolean',
             'is_beta' => 'boolean',
+            'is_creator' => 'boolean',
         ];
     }
 
@@ -70,6 +77,16 @@ class User extends Authenticatable implements FilamentUser
         return $this->hasMany(UserSession::class);
     }
 
+    public function creatorModels(): HasMany
+    {
+        return $this->hasMany(SketchupModel::class, 'creator_id');
+    }
+
+    public function creatorApplication(): HasOne
+    {
+        return $this->hasOne(CreatorApplication::class);
+    }
+
     public function favorites(): HasMany
     {
         return $this->hasMany(ModelFavorite::class);
@@ -78,6 +95,11 @@ class User extends Authenticatable implements FilamentUser
     public function hasFavorited(int $modelId): bool
     {
         return $this->favorites()->where('sketchup_model_id', $modelId)->exists();
+    }
+
+    public function isApprovedCreator(): bool
+    {
+        return $this->is_creator && $this->creator_status === 'approved';
     }
 
     public function hasActiveSubscription(): bool

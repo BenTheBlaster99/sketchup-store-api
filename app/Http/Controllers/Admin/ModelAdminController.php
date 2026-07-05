@@ -15,7 +15,7 @@ class ModelAdminController extends Controller
 
     public function index(): JsonResponse
     {
-        $models = SketchupModel::with('category')
+        $models = SketchupModel::with(['category', 'creator:id,name,display_name', 'tags'])
             ->orderBy('created_at', 'desc')
             ->get();
 
@@ -31,15 +31,22 @@ class ModelAdminController extends Controller
             'thumbnail_key' => 'nullable|string',
             'file_size_bytes' => 'required|integer',
             'sketchup_version_min' => 'required|integer|min:2020|max:2030',
+            'tag_ids' => 'nullable|array',
+            'tag_ids.*' => 'exists:tags,id',
         ]);
 
         $model = SketchupModel::create([
-            ...$data,
+            ...collect($data)->except('tag_ids')->all(),
             'slug' => Str::slug($data['name']).'-'.Str::random(6),
             'is_published' => false,
+            'review_status' => 'approved',
         ]);
 
-        return response()->json($model, 201);
+        if (! empty($data['tag_ids'])) {
+            $model->tags()->sync($data['tag_ids']);
+        }
+
+        return response()->json($model->load(['category', 'tags']), 201);
     }
 
     public function update(Request $request, SketchupModel $model): JsonResponse
@@ -49,12 +56,20 @@ class ModelAdminController extends Controller
             'category_id' => 'exists:categories,id',
             'sketchup_version_min' => 'integer|min:2020|max:2030',
             'is_published' => 'boolean',
+            'review_status' => 'in:approved,pending_review,rejected',
+            'rejection_note' => 'nullable|string',
             'sort_order' => 'integer',
+            'tag_ids' => 'nullable|array',
+            'tag_ids.*' => 'exists:tags,id',
         ]);
 
-        $model->update($data);
+        $model->update(collect($data)->except('tag_ids')->all());
 
-        return response()->json($model);
+        if (array_key_exists('tag_ids', $data)) {
+            $model->tags()->sync($data['tag_ids'] ?? []);
+        }
+
+        return response()->json($model->load(['category', 'tags']));
     }
 
     public function destroy(SketchupModel $model): JsonResponse

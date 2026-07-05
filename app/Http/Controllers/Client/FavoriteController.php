@@ -15,6 +15,10 @@ class FavoriteController extends Controller
 
     public function toggle(Request $request, SketchupModel $model): JsonResponse
     {
+        if (! $model->is_published || $model->review_status !== 'approved') {
+            abort(404);
+        }
+
         $user = $request->user();
 
         $existing = ModelFavorite::where('user_id', $user->id)
@@ -46,7 +50,8 @@ class FavoriteController extends Controller
             $q->where('user_id', $request->user()->id);
         })
             ->where('is_published', true)
-            ->with('tags')
+            ->where('review_status', 'approved')
+            ->with(['tags', 'creator:id,name,display_name'])
             ->orderBy('sort_order')
             ->get()
             ->map(function ($model) {

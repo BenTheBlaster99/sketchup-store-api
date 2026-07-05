@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Models\Tag;
+use App\Services\AutoTagService;
 use App\Services\StorageService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -10,7 +12,10 @@ use Illuminate\Support\Str;
 
 class UploadController extends Controller
 {
-    public function __construct(private StorageService $storage) {}
+    public function __construct(
+        private StorageService $storage,
+        private AutoTagService $autoTag,
+    ) {}
 
     public function presign(Request $request): JsonResponse
     {
@@ -31,6 +36,37 @@ class UploadController extends Controller
             'file_key' => $fileKey,
             'thumb_upload_url' => $this->storage->presignedUploadUrl($thumbKey, $request->thumbnail_type),
             'thumb_key' => $thumbKey,
+        ]);
+    }
+
+    public function autotag(Request $request): JsonResponse
+    {
+        $data = $request->validate([
+            'thumbnail_key' => 'nullable|string',
+            'thumbnail_url' => 'nullable|string',
+        ]);
+
+        if (empty($data['thumbnail_key']) && empty($data['thumbnail_url'])) {
+            return response()->json(['message' => 'thumbnail_key or thumbnail_url is required.'], 422);
+        }
+
+        $thumbnailUrl = $data['thumbnail_url'] ?? null;
+
+        if ($thumbnailUrl && ! filter_var($thumbnailUrl, FILTER_VALIDATE_URL)) {
+            $thumbnailUrl = $this->storage->presignedThumbnailUrl($thumbnailUrl);
+        }
+
+        $thumbnailUrl ??= $this->storage->presignedThumbnailUrl($data['thumbnail_key']);
+
+        $tagIds = $this->autoTag->suggestTags($thumbnailUrl);
+        $tags = Tag::whereIn('id', $tagIds)
+            ->orderBy('group')
+            ->orderBy('name')
+            ->get();
+
+        return response()->json([
+            'suggested_tag_ids' => $tagIds,
+            'suggested_tags' => $tags,
         ]);
     }
 }

@@ -51,7 +51,11 @@ class LibraryController extends Controller
 
         $query = SketchupModel::where('category_id', $category->id)
             ->where('is_published', true)
-            ->with('tags');
+            ->where('review_status', 'approved')
+            ->with([
+                'tags',
+                'creator:id,name,display_name',
+            ]);
 
         if ($request->filled('tags')) {
             $tagSlugs = is_array($request->tags)
