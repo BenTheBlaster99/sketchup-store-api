@@ -1,3 +1,3 @@
-# Intentionally no RewriteRule here.
-# Wasmer PHPIx returns "Htaccess evaluation failed" for RewriteRule.
-# Routing on Wasmer is handled by public/router.php + wasmer.toml.
+# No RewriteRule: Wasmer PHPIx returns "Htaccess evaluation failed" for them.
+# Use PATH_INFO URLs on Wasmer, e.g. /index.php/admin and /index.php/api/...
+# Local Apache can still use a custom vhost rewrite if needed.
