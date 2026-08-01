@@ -1,11 +1,2 @@
-# Minimal rewrite rules for Wasmer Edge / PHPIx.
-# Nested IfModule / Options / env rewrite rules cause:
-# "Htaccess evaluation failed"
 RewriteEngine On
-
-RewriteCond %{HTTP:Authorization} .
-RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
-
-RewriteCond %{REQUEST_FILENAME} !-d
-RewriteCond %{REQUEST_FILENAME} !-f
 RewriteRule ^ index.php [L]
