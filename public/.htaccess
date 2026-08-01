@@ -1,2 +1,3 @@
-ErrorDocument 404 /index.php
-DirectoryIndex index.php
+# Intentionally no RewriteRule here.
+# Wasmer PHPIx returns "Htaccess evaluation failed" for RewriteRule.
+# Routing on Wasmer is handled by public/router.php + wasmer.toml.

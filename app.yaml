@@ -1,0 +1,21 @@
+kind: wasmer.io/App.v0
+name: sketchup-store-api
+package: .
+debug: false
+
+cli_args:
+  - -t
+  - /app/public
+  - -S
+  - localhost:8080
+  - /app/public/router.php
+
+capabilities:
+  database:
+    engine: mysql
+  locality:
+    regions:
+      - fr-roub1
+
+scaling:
+  mode: single_concurrency
